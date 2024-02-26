@@ -18,6 +18,7 @@
 
 <script lang="ts">
   export let actor: ActorRecord;
+  export let target_id: number;
   let sortBy: keyof ActionRecord = "dmg";
   let descending = true;
 
@@ -32,6 +33,10 @@
       e.pct = e.dmg / actor.dmg;
     });
   }
+
+  const getFilteredAction = (actions: ActionRecord[], target_id: number) => {
+    return target_id > 0 ? actions.filter(x => x.target_player_id === target_id) : actions;
+  };
 
   const getActionName = (characterId: string, actionId: number) => {
     const $_ = get(_);
@@ -75,7 +80,7 @@
   </thead>
   <tbody>
     {#if actor.actions?.length}
-      {#each actor.actions || [] as action}
+      {#each getFilteredAction(actor.actions, target_id) || [] as action}
         <tr>
           <td>{getActionName(actor.character_id, action.idx)}</td>
           <td>{action.hit.toLocaleString()}</td>

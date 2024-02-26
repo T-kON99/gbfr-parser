@@ -169,11 +169,6 @@ table
       &:hover
         color: $border-green
 
-    &.togleable
-      cursor: pointer
-      &:hover
-        color: $border-blue
-
   thead
     svg
       color: $border-green
@@ -199,6 +194,28 @@ table
       tbody
         tr:last-child
           border-bottom: 0
+
+  .target-box
+    display: inline-block
+    width: 100%
+    table-layout: fixed
+    border-collapse: collapse
+
+  .target-info
+    width: 100%
+    text-align: left
+    display: flex
+    align-items: center
+    background-color: $fg
+    cursor: pointer
+    color: $text-lighten
+    &:hover
+      color: $text-green-lighten
+      background-color: $fg-darken
+
+  .target-active
+    background-color: $fg-darken
+    color: $text-green-lighten
 
 canvas
   padding: 0 2rem 2rem

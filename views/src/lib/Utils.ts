@@ -4,7 +4,6 @@ import { get } from "svelte/store";
 import { colors, period } from "./Constants";
 import Mutex from "./Mutex";
 import { activeSession, mutex, sessions } from "./Stores";
-import type { Action } from "svelte/action";
 
 export const loadSavedSessions = (): Session[] => {
   const json = localStorage.getItem("sessions");
@@ -22,13 +21,14 @@ export const loadSavedSessions = (): Session[] => {
 };
 
 export const saveSessions = () => {
+  // TODO:
+  // Potential problem for map...
   let clones: Session[] = JSON.parse(JSON.stringify(get(sessions)));
   clones = clones.filter(session => {
     delete session.mutex;
     session.done = true;
     return session.total_dmg > 0;
   });
-
   localStorage.setItem("sessions", JSON.stringify(clones));
 };
 
@@ -109,12 +109,12 @@ export const getTarget = (actor: ActorRecord, data: ActorData) => {
   return target;
 };
 
-export const getAction = (actor: ActorRecord, target: ActorRecord, idx: number) => {
-  let action = actor.actions?.get(target.character_id)?.find(e => e.idx === idx);
+export const getAction = (actor: ActorRecord, idx: number) => {
+  let action = actor.actions?.find(e => e.idx === idx);
   if (!action) {
-    action = { idx, target_id: "", hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
-    if (!actor.actions) actor.actions = new Map();
-    actor.actions.get(target.character_id)?.push(action);
+    action = { idx, target_player_id: 0, target_character_id: "", hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
+    if (!actor.actions) actor.actions = [];
+    actor.actions.push(action);
   }
   return action;
 };

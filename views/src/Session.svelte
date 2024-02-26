@@ -34,6 +34,8 @@
   let showCanvas = false;
   let destroyed = false;
   let partyIdx = -1;
+  let availableTargets = new Map<number, string>();
+  let activeTargetID = 0;
 
   $: {
     session.actors = session.actors?.sort((a, b) => {
@@ -42,6 +44,12 @@
       }
       return Number(a[sortBy]) < Number(b[sortBy]) ? -1 : 1;
     });
+    session.actors?.forEach(t => {
+      t.targets?.forEach(e => {
+        availableTargets.set(e.player_id, e.character_id);
+      });
+    });
+    availableTargets = availableTargets;
   }
   $: if (showCanvas && canvas && !chart) {
     const ctx = canvas.getContext("2d");
@@ -98,6 +106,29 @@
 </script>
 
 {#if session.actors && session.total_dmg > 0}
+  <table class="target-box">
+    <tr>
+      {#each [...availableTargets].sort() as [target_id, target_character_id]}
+        <td
+          class="target-info"
+          class:target-active={activeTargetID === target_id}
+          on:click={() => {
+            if (activeTargetID === target_id) {
+              activeTargetID = 0;
+            } else {
+              activeTargetID = target_id;
+            }
+          }}
+        >
+          <button>
+            {$_(`actors.${target_character_id}`).length == 0
+              ? target_id
+              : $_(`actors.${target_character_id}`) + `#${target_id}`}
+          </button>
+        </td>
+      {/each}
+    </tr>
+  </table>
   <table>
     <colgroup>
       <col width="50" />
@@ -155,7 +186,7 @@
           {#if partyIdx === actor.party_idx}
             <tr>
               <td colspan="100">
-                <Breakdown {actor} />
+                <Breakdown {actor} target_id={activeTargetID} />
               </td>
             </tr>
           {/if}
