@@ -109,10 +109,10 @@ export const getTarget = (actor: ActorRecord, data: ActorData) => {
   return target;
 };
 
-export const getAction = (actor: ActorRecord, idx: number) => {
-  let action = actor.actions?.find(e => e.idx === idx);
+export const getAction = (actor: ActorRecord, target: ActorRecord, idx: number) => {
+  let action = actor.actions?.find(e => e.idx === idx && e.target_player_id === target.player_id);
   if (!action) {
-    action = { idx, target_player_id: 0, target_character_id: "", hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
+    action = { idx, target_player_id: target.player_id, target_character_id: target.character_id, hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
     if (!actor.actions) actor.actions = [];
     actor.actions.push(action);
   }
@@ -140,9 +140,8 @@ export const pruneEvents = (session: Session) => {
   });
 };
 
-export const calculateDps = (session: Session, chart?: Chart) => {
+export const calculateDps = (session: Session, target_player_id?: number, chart?: Chart) => {
   if (!session.mutex) return;
-
   const $_ = get(_);
   mutex.wrap(() => {
     session.mutex?.wrap(() => {
@@ -158,6 +157,14 @@ export const calculateDps = (session: Session, chart?: Chart) => {
         actor.dps = Math.floor(actor.dmg / full);
         actor.dpsm = Math.floor(actor.dmgm / fullm);
       }
+      // if (target_player_id === 0) {
+
+      // } else {
+      //   for (const actor of session.actors) {
+      //     actor.dps = Math.floor(actor.targets?.find(e => e.player_id === target_player_id)?.dmg ?? 0 / full);
+      //     actor.dpsm = Math.floor(actor.targets?.find(e => e.player_id === target_player_id)?.dmgm ?? 0 / fullm);
+      //   }
+      // }
 
       if (real > 0 && session.last_chart_update !== session.last_damage_at) {
         if (period > 0) {
@@ -185,7 +192,6 @@ export const calculateDps = (session: Session, chart?: Chart) => {
           }
           dataset.data.push({ x: real, y: actor.dpsm || 0 });
         });
-
         chart?.update();
         session.last_chart_update = session.last_damage_at;
       }

@@ -30,7 +30,8 @@
       return Number(a[sortBy]) < Number(b[sortBy]) ? -1 : 1;
     });
     actor.actions?.forEach(e => {
-      e.pct = e.dmg / actor.dmg;
+      let total_dmg = target_id === 0 ? actor.dmg : actor.targets?.find(e => e.player_id === target_id)?.dmg ?? 0;
+      e.pct = total_dmg === 0 ? 0 : e.dmg / total_dmg;
     });
   }
 
