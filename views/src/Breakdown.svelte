@@ -4,19 +4,20 @@
 
   import SortAscending from "svelte-material-icons/SortAscending.svelte";
   import SortDescending from "svelte-material-icons/SortDescending.svelte";
+  import type { Action } from "svelte/action";
 
   const headers: { key?: keyof ActionRecord; text: string }[] = [
     { text: "Name" },
     { key: "hit", text: "Hits" },
     { key: "dmg", text: "Damage" },
     { key: "min", text: "Min. DMG" },
-    { key: "max", text: "Max. DMG" }
+    { key: "max", text: "Max. DMG" },
+    { key: "pct", text: "DMG %" }
   ];
 </script>
 
 <script lang="ts">
   export let actor: ActorRecord;
-
   let sortBy: keyof ActionRecord = "dmg";
   let descending = true;
 
@@ -26,6 +27,9 @@
         return Number(a[sortBy]) > Number(b[sortBy]) ? -1 : 1;
       }
       return Number(a[sortBy]) < Number(b[sortBy]) ? -1 : 1;
+    });
+    actor.actions?.forEach(e => {
+      e.pct = e.dmg / actor.dmg;
     });
   }
 
@@ -78,6 +82,11 @@
           <td>{action.dmg.toLocaleString()}</td>
           <td>{action.min.toLocaleString()}</td>
           <td>{action.max.toLocaleString()}</td>
+          <td
+            >{(Number(action.pct || 0) * 100).toLocaleString(undefined, {
+              maximumFractionDigits: 1
+            })}%</td
+          >
         </tr>
       {/each}
     {/if}

@@ -27,10 +27,12 @@ declare global {
 
   interface ActionRecord {
     idx: number;
+    target_id: string;
     hit: number;
     dmg: number;
     min: number;
     max: number;
+    pct: number;
   }
 
   interface ActorRecord {
@@ -47,7 +49,7 @@ declare global {
     percentage?: number;
 
     targets?: ActorRecord[];
-    actions?: ActionRecord[];
+    actions?: Map<string, ActionRecord[]>;
   }
 
   interface Session {

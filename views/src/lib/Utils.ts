@@ -4,6 +4,7 @@ import { get } from "svelte/store";
 import { colors, period } from "./Constants";
 import Mutex from "./Mutex";
 import { activeSession, mutex, sessions } from "./Stores";
+import type { Action } from "svelte/action";
 
 export const loadSavedSessions = (): Session[] => {
   const json = localStorage.getItem("sessions");
@@ -73,7 +74,7 @@ export const removeSession = (session: Session) => {
 export const getActor = (data: ActorData) => {
   const $sessions = get(sessions);
   const record = $sessions[$sessions.length - 1];
-  let characterId = toHexString(data[2]);
+  const characterId = toHexString(data[2]);
 
   let actor = record.actors?.find(e => e.player_id === data[1] || (e.party_idx === data[3] && characterId));
   if (!actor) {
@@ -108,12 +109,12 @@ export const getTarget = (actor: ActorRecord, data: ActorData) => {
   return target;
 };
 
-export const getAction = (actor: ActorRecord, idx: number) => {
-  let action = actor.actions?.find(e => e.idx === idx);
+export const getAction = (actor: ActorRecord, target: ActorRecord, idx: number) => {
+  let action = actor.actions?.get(target.character_id)?.find(e => e.idx === idx);
   if (!action) {
-    action = { idx, hit: 0, dmg: 0, min: -1, max: -1 };
-    if (!actor.actions) actor.actions = [];
-    actor.actions.push(action);
+    action = { idx, target_id: "", hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
+    if (!actor.actions) actor.actions = new Map();
+    actor.actions.get(target.character_id)?.push(action);
   }
   return action;
 };
@@ -203,14 +204,14 @@ export const formatDuration = (start: number, end: number) => {
   } else {
     const sec = Math.floor(ms / 1000);
     if (sec < 60) result = `${sec}s`;
-    else result = `${Math.floor(sec / 60)}m`;
+    else result = `${Math.floor(sec / 60)}m${sec % 60}s`;
   }
   return result;
 };
 
 export const formatTime = (start: number, end: number) => {
   const t = new Date(start);
-  let result = `${t.getHours()}:${t.getMinutes()}`;
+  let result = `${t.getHours()}:${t.getMinutes()}:${t.getSeconds()}`;
   if (end - start > 0) {
     result += ` [${formatDuration(start, end)}]`;
   }
