@@ -63,15 +63,14 @@
 
         const target = getTarget(actor, data.target);
         target.dmg += data.damage;
+        target.dmgm += data.damage;
 
         session.actors?.forEach(e => {
           e.percentage = e.dmg / session.total_dmg;
         });
 
-        const action = getAction(actor, data.flags & (1 << 15) ? -3 : data.action_id);
+        const action = getAction(actor, target, data.flags & (1 << 15) ? -3 : data.action_id);
         action.dmg += data.damage;
-        action.target_player_id = target.player_id;
-        action.target_character_id = target.character_id;
         ++action.hit;
 
         if (action.min === -1 || action.min > data.damage) action.min = data.damage;
