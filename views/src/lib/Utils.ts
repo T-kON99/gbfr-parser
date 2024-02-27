@@ -27,7 +27,6 @@ export const saveSessions = () => {
     session.done = true;
     return session.total_dmg > 0;
   });
-
   localStorage.setItem("sessions", JSON.stringify(clones));
 };
 
@@ -44,7 +43,7 @@ export const createSession = (time: number) => {
 
   const session: Session = {
     mutex: new Mutex(),
-    chart: { datasets: [] },
+    chart: [],
 
     start_at: time,
     start_damage_at: 0,
@@ -73,7 +72,7 @@ export const removeSession = (session: Session) => {
 export const getActor = (data: ActorData) => {
   const $sessions = get(sessions);
   const record = $sessions[$sessions.length - 1];
-  let characterId = toHexString(data[2]);
+  const characterId = toHexString(data[2]);
 
   let actor = record.actors?.find(e => e.player_id === data[1] || (e.party_idx === data[3] && characterId));
   if (!actor) {
@@ -108,15 +107,32 @@ export const getTarget = (actor: ActorRecord, data: ActorData) => {
   return target;
 };
 
-export const getAction = (actor: ActorRecord, idx: number) => {
-  let action = actor.actions?.find(e => e.idx === idx);
+export const getAction = (actor: ActorRecord, target: ActorRecord, idx: number) => {
+  let action = actor.actions?.find(e => e.idx === idx && e.target_player_id === target.player_id);
   if (!action) {
-    action = { idx, hit: 0, dmg: 0, min: -1, max: -1 };
+    action = { idx, target_player_id: target.player_id, target_character_id: target.character_id, hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
     if (!actor.actions) actor.actions = [];
     actor.actions.push(action);
   }
-  return action;
+
+  // 0 represents no specific targets breakdown, ie: DPS without considering target
+  let defaultAction = actor.actions?.find(e => e.idx === idx && e.target_player_id === 0);
+  if (!defaultAction) {
+    defaultAction = { idx, target_player_id: 0, target_character_id: "", hit: 0, dmg: 0, min: -1, max: -1, pct: 0 };
+    if (!actor.actions) actor.actions = [];
+    actor.actions.push(defaultAction);
+  }
+  return [action, defaultAction];
 };
+
+export const modifyActionDamage = (action: ActionRecord, data: EventData) => {
+  action.dmg += data.damage;
+  ++action.hit;
+
+  if (action.min === -1 || action.min > data.damage) action.min = data.damage;
+  if (action.max === -1 || action.max < data.damage) action.max = data.damage;
+  return action
+}
 
 export const pruneEvents = (session: Session) => {
   if (!session.mutex) return;
@@ -133,6 +149,11 @@ export const pruneEvents = (session: Session) => {
 
         const actor = getActor(event.source);
         actor.dmgm -= event.dmg;
+        const target = getActor(event.target);
+        const eTarget = actor.targets?.find(e => e.player_id === target.player_id)
+        if (eTarget) {
+          eTarget.dmgm -= event.dmg
+        }
         sessions.set(get(sessions));
       }
     });
@@ -141,7 +162,6 @@ export const pruneEvents = (session: Session) => {
 
 export const calculateDps = (session: Session, chart?: Chart) => {
   if (!session.mutex) return;
-
   const $_ = get(_);
   mutex.wrap(() => {
     session.mutex?.wrap(() => {
@@ -156,35 +176,50 @@ export const calculateDps = (session: Session, chart?: Chart) => {
       for (const actor of session.actors) {
         actor.dps = Math.floor(actor.dmg / full);
         actor.dpsm = Math.floor(actor.dmgm / fullm);
+        actor.targets?.forEach(e => {
+          e.dps = Math.floor(e.dmg / full);
+          e.dpsm = Math.floor(e.dmgm / fullm);
+        })
       }
 
       if (real > 0 && session.last_chart_update !== session.last_damage_at) {
         if (period > 0) {
           const min_time = real - period;
-          for (const dataset of session.chart.datasets) {
-            const idx = dataset.data.findIndex(d => d.x > min_time);
-            if (idx >= 0) {
-              dataset.data = dataset.data.slice(idx);
+          for (const charts of session.chart) {
+            for (const dataset of charts.datasets) {
+              const idx = dataset.data.findIndex(d => d.x > min_time);
+              if (idx >= 0) {
+                dataset.data = dataset.data.slice(idx);
+              }
             }
           }
         }
 
         session.actors.forEach(actor => {
-          const label = `[${actor.party_idx + 1}] ` + $_(`actors.${actor.character_id}`);
-          let dataset: DataSet | undefined = session.chart.datasets.find(ds => ds.label === label);
-          if (!dataset) {
-            dataset = {
-              label,
-              data: [],
-              borderColor: colors[actor.party_idx],
-              backgroundColor: colors[actor.party_idx],
-              fill: false
-            };
-            session.chart.datasets.push(dataset);
+          if (actor.party_idx < 0) {
+            return true
           }
-          dataset.data.push({ x: real, y: actor.dpsm || 0 });
+          const label = `[${actor.party_idx + 1}] ` + $_(`actors.${actor.character_id}`);
+          for (const charts of session.chart) {
+            let dataset: DataSet | undefined = charts.datasets.find(ds => ds.label === label);
+            if (!dataset) {
+              dataset = {
+                label,
+                data: [],
+                borderColor: colors[actor.party_idx],
+                backgroundColor: colors[actor.party_idx],
+                fill: false
+              };
+              charts.datasets.push(dataset);
+            }
+            if (charts.target_player_id) {
+              dataset.data.push({ x: real, y: actor.targets?.find(e => e.player_id === charts.target_player_id)?.dpsm ?? 0 });
+            } else {
+              dataset.data.push({ x: real, y: actor.dpsm || 0 });
+            }
+            charts.datasets.sort((a, b) => a.label.localeCompare(b.label))
+          }
         });
-
         chart?.update();
         session.last_chart_update = session.last_damage_at;
       }
@@ -203,14 +238,14 @@ export const formatDuration = (start: number, end: number) => {
   } else {
     const sec = Math.floor(ms / 1000);
     if (sec < 60) result = `${sec}s`;
-    else result = `${Math.floor(sec / 60)}m`;
+    else result = `${Math.floor(sec / 60)}m${sec % 60}s`;
   }
   return result;
 };
 
 export const formatTime = (start: number, end: number) => {
   const t = new Date(start);
-  let result = `${t.getHours()}:${t.getMinutes()}`;
+  let result = `${t.getHours()}:${t.getMinutes()}:${t.getSeconds()}`;
   if (end - start > 0) {
     result += ` [${formatDuration(start, end)}]`;
   }

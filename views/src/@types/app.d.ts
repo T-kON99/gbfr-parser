@@ -27,10 +27,13 @@ declare global {
 
   interface ActionRecord {
     idx: number;
+    target_player_id: number;
+    target_character_id: string;
     hit: number;
     dmg: number;
     min: number;
     max: number;
+    pct: number;
   }
 
   interface ActorRecord {
@@ -53,7 +56,7 @@ declare global {
   interface Session {
     mutex?: Mutex;
     done?: boolean;
-    chart: ChartData;
+    chart: ChartData[];
 
     start_at: number;
     start_damage_at: number;
@@ -74,6 +77,7 @@ declare global {
   }
 
   interface ChartData {
+    target_player_id?: number;
     datasets: DataSet[];
   }
 }

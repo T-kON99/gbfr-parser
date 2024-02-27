@@ -20,6 +20,7 @@
     getActor,
     getTarget,
     loadSavedSessions,
+    modifyActionDamage,
     removeSession,
     saveSessions
   } from "./lib/Utils";
@@ -61,19 +62,17 @@
         actor.dmgm += data.damage;
         ++actor.hit;
 
+        const target = getTarget(actor, data.target);
+        target.dmg += data.damage;
+        target.dmgm += data.damage;
+
         session.actors?.forEach(e => {
           e.percentage = e.dmg / session.total_dmg;
         });
 
-        const target = getTarget(actor, data.target);
-        target.dmg += data.damage;
-
-        const action = getAction(actor, data.flags & (1 << 15) ? -3 : data.action_id);
-        action.dmg += data.damage;
-        ++action.hit;
-
-        if (action.min === -1 || action.min > data.damage) action.min = data.damage;
-        if (action.max === -1 || action.max < data.damage) action.max = data.damage;
+        let [action, defaultAction] = getAction(actor, target, data.flags & (1 << 15) ? -3 : data.action_id);
+        action = modifyActionDamage(action, data);
+        defaultAction = modifyActionDamage(defaultAction, data);
 
         if (!session.events) session.events = [];
         session.events.push({
@@ -158,62 +157,63 @@
   });
 </script>
 
-{#if connected}
+<div id="main">
+  {#if !connected}
+    <div class="alert alert-3-danger">
+      <i class="alert-content">Failed to connect to websocket server, check injector status...</i>
+    </div>
+  {/if}
   {#if $sessions.some(session => session.total_dmg > 0)}
-    <div id="main">
-      <header>
-        <button class="slider-prev" bind:this={prevBtn}>
-          <ChevronLeft size="2.1rem" />
-        </button>
-        <div class="slider-wrapper">
-          <div class="swiper" bind:this={swiperRoot}>
-            <div class="swiper-wrapper">
-              {#each $sessions as session, idx}
-                {#if session.total_dmg > 0}
-                  <button
-                    class={`swiper-slide` + ($activeSession === session ? " active" : "")}
-                    type="button"
-                    on:click|self={() => ($activeSession = session)}
-                  >
-                    {formatTime(session.start_damage_at, session.last_damage_at)}
-                    <!-- svelte-ignore a11y-no-static-element-interactions -->
-                    <!-- svelte-ignore a11y-click-events-have-key-events -->
-                    <span
-                      on:click={() => {
-                        removeSession(session);
-                        if (swiper) {
-                          window.requestAnimationFrame(() => swiper.update());
-                          if ($activeSession === session) {
-                            window.requestAnimationFrame(() => swiper.slideTo($sessions.indexOf($activeSession)));
-                          }
+    <header>
+      <button class="slider-prev" bind:this={prevBtn}>
+        <ChevronLeft size="2.1rem" />
+      </button>
+      <div class="slider-wrapper">
+        <div class="swiper" bind:this={swiperRoot}>
+          <div class="swiper-wrapper">
+            {#each $sessions as session, idx}
+              {#if session.total_dmg > 0}
+                <button
+                  class={`swiper-slide` + ($activeSession === session ? " active" : "")}
+                  type="button"
+                  on:click|self={() => ($activeSession = session)}
+                >
+                  {formatTime(session.start_damage_at, session.last_damage_at)}
+                  <!-- svelte-ignore a11y-no-static-element-interactions -->
+                  <!-- svelte-ignore a11y-click-events-have-key-events -->
+                  <span
+                    on:click={() => {
+                      removeSession(session);
+                      if (swiper) {
+                        window.requestAnimationFrame(() => swiper.update());
+                        if ($activeSession === session) {
+                          window.requestAnimationFrame(() => swiper.slideTo($sessions.indexOf($activeSession)));
                         }
-                      }}
-                    >
-                      <Close size="1.6rem" />
-                    </span>
-                  </button>
-                {/if}
-              {/each}
-            </div>
+                      }
+                    }}
+                  >
+                    <Close size="1.6rem" />
+                  </span>
+                </button>
+              {/if}
+            {/each}
           </div>
         </div>
-        <button class="slider-next" bind:this={nextBtn}>
-          <ChevronRight size="2.1rem" />
-        </button>
-      </header>
-      <main>
-        {#each $sessions as session (session.start_at)}
-          {#if $activeSession === session}
-            {#key session.start_at}
-              <Session bind:session />
-            {/key}
-          {/if}
-        {/each}
-      </main>
-    </div>
+      </div>
+      <button class="slider-next" bind:this={nextBtn}>
+        <ChevronRight size="2.1rem" />
+      </button>
+    </header>
+    <main>
+      {#each $sessions as session (session.start_at)}
+        {#if $activeSession === session}
+          {#key session.start_at}
+            <Session bind:session />
+          {/key}
+        {/if}
+      {/each}
+    </main>
   {:else}
     <i>Waiting for battle events... </i>
   {/if}
-{:else}
-  <i>Establishing connection to WebSocket...</i>
-{/if}
+</div>
