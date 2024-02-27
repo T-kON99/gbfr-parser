@@ -1,4 +1,12 @@
 @import reset
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap')
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap')
+
+$primary-color: #4d4dff
+$secondary-color: #666666
+$danger-color: #ff3838
+$warning-color: #ffba00
+$success-color: #2ec946
 
 ::-webkit-scrollbar
   background-color: rgba(58, 58, 58, 1)
@@ -151,6 +159,57 @@ main
 
     &:hover
       color: $border-green
+
+div
+  .alert
+    width: auto
+    padding: .5rem
+    max-width: 100%
+
+  @mixin alert-1($color)
+    background-color: rgba($color, 0.05)
+
+    .alert-title
+      color: $color
+
+  @mixin alert-2($color)
+    background-color: rgba($color, 0.05)
+
+    .alert-title
+      color: $color
+
+  @mixin alert-3($color)
+    background-color: rgba($color, 0.05)
+
+  .alert-1-primary
+    @include alert-1($primary-color)
+
+  .alert-1-warning
+    @include alert-1($warning-color)
+
+  .alert-2-success
+    @include alert-2($success-color)
+
+  .alert-2-secondary
+    @include alert-2($secondary-color)
+
+  .alert-3-primary
+    @include alert-3($primary-color)
+
+  .alert-3-danger
+    @include alert-3($danger-color)
+
+  .alert-title
+    margin-top: 0
+    margin-bottom: .5rem
+    font-size: .5rem
+    font-family: 'Poppins', sans-serif
+
+  .alert-content
+    margin: 0
+    font-size: 14px
+    font-family: 'Open Sans', sans-serif
+    color: $text-warning
 
 table
   text-align: right

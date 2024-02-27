@@ -20,6 +20,7 @@
     getActor,
     getTarget,
     loadSavedSessions,
+    modifyActionDamage,
     removeSession,
     saveSessions
   } from "./lib/Utils";
@@ -63,19 +64,15 @@
 
         const target = getTarget(actor, data.target);
         target.dmg += data.damage;
+        target.dmgm += data.damage;
 
         session.actors?.forEach(e => {
           e.percentage = e.dmg / session.total_dmg;
         });
 
-        const action = getAction(actor, data.flags & (1 << 15) ? -3 : data.action_id);
-        action.dmg += data.damage;
-        action.target_player_id = target.player_id;
-        action.target_character_id = target.character_id;
-        ++action.hit;
-
-        if (action.min === -1 || action.min > data.damage) action.min = data.damage;
-        if (action.max === -1 || action.max < data.damage) action.max = data.damage;
+        let [action, defaultAction] = getAction(actor, target, data.flags & (1 << 15) ? -3 : data.action_id);
+        action = modifyActionDamage(action, data);
+        defaultAction = modifyActionDamage(defaultAction, data);
 
         if (!session.events) session.events = [];
         session.events.push({
@@ -162,9 +159,8 @@
 
 <div id="main">
   {#if !connected}
-    <div class="p-3">
-      <el-alert title="socket is not connect, check inject status" type="error" effect="dark"></el-alert>
-      <i>Establishing connection to WebSocket...</i>
+    <div class="alert alert-3-danger">
+      <i class="alert-content">Failed to connect to websocket server, check injector status...</i>
     </div>
   {/if}
   {#if $sessions.some(session => session.total_dmg > 0)}

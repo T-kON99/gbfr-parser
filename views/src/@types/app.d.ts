@@ -56,7 +56,7 @@ declare global {
   interface Session {
     mutex?: Mutex;
     done?: boolean;
-    chart: ChartData;
+    chart: ChartData[];
 
     start_at: number;
     start_damage_at: number;
@@ -77,6 +77,7 @@ declare global {
   }
 
   interface ChartData {
+    target_player_id?: number;
     datasets: DataSet[];
   }
 }

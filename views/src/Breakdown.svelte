@@ -4,7 +4,6 @@
 
   import SortAscending from "svelte-material-icons/SortAscending.svelte";
   import SortDescending from "svelte-material-icons/SortDescending.svelte";
-  import type { Action } from "svelte/action";
 
   const headers: { key?: keyof ActionRecord; text: string }[] = [
     { text: "Name" },
@@ -36,7 +35,7 @@
   }
 
   const getFilteredAction = (actions: ActionRecord[], target_id: number) => {
-    return target_id > 0 ? actions.filter(x => x.target_player_id === target_id) : actions;
+    return actions.filter(x => x.target_player_id === target_id);
   };
 
   const getActionName = (characterId: string, actionId: number) => {

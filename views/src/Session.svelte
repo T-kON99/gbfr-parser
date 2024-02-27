@@ -34,68 +34,117 @@
   let showCanvas = false;
   let destroyed = false;
   let partyIdx = -1;
-  let availableTargets = new Map<number, string>();
-  let activeTargetID = 0;
-
+  let availableTargets = new Map<number, ActorRecord>();
+  // Map of actor_player_id/target_player_id to actor records, used to filter based on the active target_player_id
+  let activeActorsToTarget = new Map<string, ActorRecord>();
+  // 0 represents no specific targets breakdown, ie: DPS without considering target
+  let activeTargetPlayerID = 0;
+  let totalDmgToTargetPlayerID = 0;
+  let totalDPSToTargetPlayerID = 0;
+  let data = session.chart.find(e => e.target_player_id === activeTargetPlayerID) ?? { datasets: [] };
   $: {
     session.actors = session.actors?.sort((a, b) => {
       if (descending) {
-        return Number(a[sortBy]) > Number(b[sortBy]) ? -1 : 1;
+        return Number((getActiveTargetActor(a, activeTargetPlayerID) ?? a)[sortBy]) >
+          Number((getActiveTargetActor(b, activeTargetPlayerID) ?? b)[sortBy])
+          ? -1
+          : 1;
       }
-      return Number(a[sortBy]) < Number(b[sortBy]) ? -1 : 1;
+      return Number((getActiveTargetActor(a, activeTargetPlayerID) ?? a)[sortBy]) <
+        Number((getActiveTargetActor(b, activeTargetPlayerID) ?? b)[sortBy])
+        ? -1
+        : 1;
     });
-    session.actors?.forEach(t => {
-      t.targets?.forEach(e => {
-        availableTargets.set(e.player_id, e.character_id);
+
+    // DMG Details breakdown to target
+    totalDmgToTargetPlayerID = 0;
+    totalDPSToTargetPlayerID = 0;
+    session.actors?.forEach(a => {
+      a.targets?.forEach(e => {
+        totalDmgToTargetPlayerID += e.player_id === activeTargetPlayerID ? e.dmg : 0;
+        totalDPSToTargetPlayerID += e.player_id === activeTargetPlayerID ? e?.dps ?? 0 : 0;
+        availableTargets.set(e.player_id, e);
+        activeActorsToTarget.set(getActiveTargetActorKey(a.player_id, e.player_id), e);
       });
+      activeActorsToTarget.set(getActiveTargetActorKey(a.player_id, 0), a);
+      totalDmgToTargetPlayerID += 0 === activeTargetPlayerID ? a.dmg : 0;
+      totalDPSToTargetPlayerID += 0 === activeTargetPlayerID ? a?.dps ?? 0 : 0;
     });
+    activeActorsToTarget = activeActorsToTarget;
     availableTargets = availableTargets;
   }
-  $: if (showCanvas && canvas && !chart) {
+
+  $: if (showCanvas && canvas) {
     const ctx = canvas.getContext("2d");
     if (ctx) {
-      chart = new Chart(ctx, {
-        type: "line",
-        data: session.chart,
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          scales: {
-            x: {
-              type: "linear",
-              position: "bottom",
-              title: {
-                display: true,
-                text: "Time (seconds)"
+      if (!chart) {
+        chart = new Chart(ctx, {
+          type: "line",
+          data: data,
+          options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+              x: {
+                type: "linear",
+                position: "bottom",
+                title: {
+                  display: true,
+                  text: "Time (seconds)"
+                }
+              },
+              y: {
+                //beginAtZero: true,
+                position: "left",
+                title: {
+                  display: true,
+                  text: "DPS"
+                }
               }
             },
-            y: {
-              //beginAtZero: true,
-              position: "left",
-              title: {
-                display: true,
-                text: "DPS"
-              }
+            animations: {
+              y: { duration: 0 }
+            },
+            elements: {
+              point: { radius: 0 }
             }
-          },
-          animations: {
-            y: { duration: 0 }
-          },
-          elements: {
-            point: { radius: 0 }
           }
-        }
-      });
+        });
+      } else {
+        chart.data = data;
+        chart.update();
+      }
     }
   }
+
+  const getActiveTargetActorKey = (actor_player_id: number, target_player_id: number) => {
+    return `${actor_player_id}-${target_player_id}`;
+  };
+
+  const getActiveTargetActor = (actor: ActorRecord, target_player_id: number) => {
+    return activeActorsToTarget.get(getActiveTargetActorKey(actor.player_id, target_player_id));
+  };
 
   const updateEvents = () => {
     if (!session.mutex) return;
     if (session?.last_damage_at > 0) {
       pruneEvents(session);
+      // Chart data details to target
+      availableTargets.forEach(t => {
+        let tempData = session.chart.find(e => e.target_player_id === t.player_id);
+        if (!tempData) {
+          tempData = { datasets: [], target_player_id: t.player_id };
+          session.chart.push(tempData);
+        }
+      });
+      let tempData = session.chart.find(e => e.target_player_id === activeTargetPlayerID);
+      if (!tempData) {
+        tempData = { datasets: [], target_player_id: activeTargetPlayerID };
+        session.chart.push(tempData);
+      }
+      data = tempData;
       calculateDps(session, chart);
     }
-
     if (!destroyed && $sessions.indexOf(session) >= 0) {
       setTimeout(updateEvents, 1000);
     }
@@ -108,22 +157,23 @@
 {#if session.actors && session.total_dmg > 0}
   <table class="target-box">
     <tr>
-      {#each [...availableTargets].sort() as [target_id, target_character_id]}
+      {#each [...availableTargets].sort() as [target_id, target]}
         <td
           class="target-info"
-          class:target-active={activeTargetID === target_id}
+          class:target-active={activeTargetPlayerID === target_id}
           on:click={() => {
-            if (activeTargetID === target_id) {
-              activeTargetID = 0;
+            if (activeTargetPlayerID === target_id) {
+              activeTargetPlayerID = 0;
             } else {
-              activeTargetID = target_id;
+              activeTargetPlayerID = target_id;
             }
+            data = session.chart.find(e => e.target_player_id === activeTargetPlayerID) ?? data;
           }}
         >
           <button>
-            {$_(`actors.${target_character_id}`).length == 0
+            {$_(`actors.${target.character_id}`).length == 0
               ? target_id
-              : $_(`actors.${target_character_id}`) + `#${target_id}`}
+              : $_(`actors.${target.character_id}`) + `#${target_id}`}
           </button>
         </td>
       {/each}
@@ -162,13 +212,21 @@
     </thead>
     <tbody>
       {#each session.actors as actor}
-        {#if actor.party_idx >= 0 && actor.dmg > 0}
+        {@const activeTargetActor = getActiveTargetActor(actor, activeTargetPlayerID)}
+        {#if (actor.party_idx >= 0 && activeTargetActor?.dmg) || 0 > 0}
           <tr>
             <td>{actor.party_idx + 1}</td>
             <td style={`color: ${colors[actor.party_idx]}`}>{$_(`actors.${actor.character_id}`)}</td>
-            <td>{actor.dmg.toLocaleString()}</td>
-            <td>{(actor.dps || 0).toLocaleString()}</td>
-            <td>{(Number(actor.percentage || 0) * 100).toLocaleString(undefined, { maximumFractionDigits: 1 })}%</td>
+            <td>{(activeTargetActor?.dmg || 0).toLocaleString()}</td>
+            <td>{(activeTargetActor?.dps || 0).toLocaleString()}</td>
+            <td
+              >{(Number((activeTargetActor?.dmg ?? 0) / totalDmgToTargetPlayerID || 0) * 100).toLocaleString(
+                undefined,
+                {
+                  maximumFractionDigits: 1
+                }
+              )}%</td
+            >
             <td style="padding: 0">
               <button
                 type="button"
@@ -186,7 +244,7 @@
           {#if partyIdx === actor.party_idx}
             <tr>
               <td colspan="100">
-                <Breakdown {actor} target_id={activeTargetID} />
+                <Breakdown {actor} target_id={activeTargetPlayerID} />
               </td>
             </tr>
           {/if}
@@ -198,8 +256,8 @@
         <tr>
           <th></th>
           <th></th>
-          <th>{session.total_dmg.toLocaleString()}</th>
-          <th>{(session.total_dps || 0).toLocaleString()}</th>
+          <th>{totalDmgToTargetPlayerID.toLocaleString()}</th>
+          <th>{(totalDPSToTargetPlayerID || 0).toLocaleString()}</th>
         </tr>
       </tfoot>
     {/if}
